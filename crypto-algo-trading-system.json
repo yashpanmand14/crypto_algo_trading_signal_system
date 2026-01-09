@@ -1,0 +1,214 @@
+{
+  "name": "crypto-algo-trading-system",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "179cd946-5ec0-4e8f-a374-319003b4878c",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "147f12f8-1a62-47d1-aa91-9ad6b7a747be",
+              "name": "symbol",
+              "value": "BTCUSDT",
+              "type": "string"
+            },
+            {
+              "id": "496e8c9d-5bee-4e3e-b680-ff9841153de8",
+              "name": "",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        208,
+        0
+      ],
+      "id": "246313cd-3457-4d79-9714-87792e8083c4",
+      "name": "input symbol"
+    },
+    {
+      "parameters": {
+        "url": "https://api.binance.com/api/v3/klines",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "symbol",
+              "value": "={{$json.symbol}}"
+            },
+            {
+              "name": "interval",
+              "value": "5m"
+            },
+            {
+              "name": "limit",
+              "value": "50"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        416,
+        0
+      ],
+      "id": "d814d880-413b-4c7b-abe4-449f618c27e2",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all candles from all items\nconst candles = items.map(item => item.json);\n\n// Close price is index 4\nconst closes = candles.map(c => parseFloat(c[4])).filter(v => !isNaN(v));\n\nfunction movingAverage(data, period) {\n  if (data.length < period) return null;\n  const slice = data.slice(-period);\n  return slice.reduce((a, b) => a + b, 0) / period;\n}\n\nconst shortMA = movingAverage(closes, 5);\nconst longMA = movingAverage(closes, 20);\n\nlet signal = \"HOLD\";\nif (shortMA && longMA) {\n  if (shortMA > longMA) signal = \"BUY\";\n  else if (shortMA < longMA) signal = \"SELL\";\n}\n\nreturn [{\n  json: {\n    symbol: \"BTCUSDT\",\n    current_price: closes[closes.length - 1],\n    short_ma: shortMA?.toFixed(2),\n    long_ma: longMA?.toFixed(2),\n    signal,\n    timestamp: new Date().toISOString()\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        0
+      ],
+      "id": "2604ff0a-7a9e-4038-a1fb-da1a5a1ecbe9",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "1be23757-483a-4d6a-9287-70fabdcb5c93",
+              "leftValue": "={{$json.signal}}",
+              "rightValue": "hold",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        832,
+        0
+      ],
+      "id": "d5f30501-4bcf-4dd2-969f-78cdbd4383e0",
+      "name": "signal filter"
+    },
+    {
+      "parameters": {
+        "chatId": "1193644525",
+        "text": "=🚨 Crypto Trading Signal 🚨  Symbol: {{$json.symbol}} Price: {{$json.current_price}} Signal: {{$json.signal}}  Short MA: {{$json.short_ma}} Long MA: {{$json.long_ma}}  Time: {{$json.timestamp}}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1040,
+        -64
+      ],
+      "id": "2c0e983c-3799-4809-a6fd-707068c4e374",
+      "name": "Send a text message",
+      "webhookId": "f0588e35-308e-4e04-9fbb-8cb543b0e8cf",
+      "credentials": {
+        "telegramApi": {
+          "id": "2tF2mggoeWntSMuN",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "input symbol",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "input symbol": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "signal filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "signal filter": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "1421ac5a-afed-4798-95f5-b45862c669c4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "bc9eb6c33ccda90bef6e6de5f1ba644f3e432ccb8db108b79417385b5a15aa43"
+  },
+  "id": "47tIAvr1vhdTswSjqyOIQ",
+  "tags": []
+}
